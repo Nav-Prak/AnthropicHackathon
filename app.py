@@ -49,11 +49,10 @@ with st.sidebar:
     if st.button("\u2795 New Chat"):
         st.session_state.chat_sessions.append([])
         st.session_state.active_chat_index = len(st.session_state.chat_sessions) - 1
-        st.session_state.latest_file = None  # Clear uploaded file
+        st.session_state.latest_file = None
 
     st.markdown("---")
     for idx, session in enumerate(st.session_state.chat_sessions):
-        # Only show if user message exists
         if session and any(msg["role"] == "user" for msg in session):
             first_user_message = next((msg["content"] for msg in session if msg["role"] == "user"), "New Chat")
             title = first_user_message[:30] + "..." if len(first_user_message) > 30 else first_user_message
@@ -64,12 +63,22 @@ with st.sidebar:
 # === MAIN AREA ===
 current_session = st.session_state.chat_sessions[st.session_state.active_chat_index]
 
-uploaded_file = st.file_uploader("Upload a binary or model file for analysis", type=None)
+# === INPUT AREA ===
+st.markdown("""
+<div style="display:flex;align-items:center;gap:10px;">
+""", unsafe_allow_html=True)
+
+user_input = st.chat_input("Ask me about AI security, red teaming, or malware analysis...")
+
+uploaded_file = st.file_uploader("", label_visibility="collapsed", key="file_upload", type=None)
+
+st.markdown("""
+</div>
+""", unsafe_allow_html=True)
+
 if uploaded_file:
     st.session_state.latest_file = uploaded_file
     st.success(f"Uploaded `{uploaded_file.name}`")
-
-user_input = st.chat_input("Ask me about AI security, red teaming, or malware analysis...")
 
 if user_input:
     current_session.append({"role": "user", "content": user_input})
