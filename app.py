@@ -7,6 +7,8 @@ from modules.attacker import generate_attacks
 from modules.evaluator import evaluate_response
 from modules.mcp_logger import MCPRecord, save_mcp_record
 from modules.file_scanner import scan_model_file
+from modules.claude_analyzer import analyze_scan_with_claude
+
 
 # Streamlit Page Settings
 st.set_page_config(page_title="RedSentinel", page_icon="🚨", layout="wide")
@@ -89,6 +91,7 @@ elif mode == "Model File Scanning":
 
         st.success(f"🔍 Scan Complete for `{scan_results['filename']}`")
 
+        # Display Local Scan Results
         st.markdown(f"**File Type:** {scan_results['file_type']}")
         st.markdown(f"**Detected Framework:** {scan_results['framework']}")
 
@@ -99,17 +102,35 @@ elif mode == "Model File Scanning":
         else:
             st.success("✅ No immediate risks detected.")
 
-        # Downloadable MCP-like Report for Model
-        model_report = {
+        st.divider()
+
+        # ➡️ NEW PART: Claude Risk Analysis
+        from modules.claude_analyzer import analyze_scan_with_claude
+
+        st.subheader("🧠 Claude Security Risk Assessment")
+
+        with st.spinner("Asking Claude for security analysis..."):
+            claude_risk_assessment = analyze_scan_with_claude(scan_results)
+
+        st.markdown(f"**Risk Severity:** `{claude_risk_assessment['risk_severity']}`")
+        st.markdown(f"**Security Concerns:** {claude_risk_assessment['security_concerns']}")
+        st.markdown(f"**Recommended Actions:** {claude_risk_assessment['recommended_actions']}")
+
+        st.divider()
+
+        # MCP-Like Combined Report
+        final_report = {
             "timestamp": scan_results.get("scan_time", "unknown"),
             "model_filename": scan_results['filename'],
             "file_type": scan_results['file_type'],
             "framework": scan_results['framework'],
-            "risks_detected": scan_results['risks_detected']
+            "risks_detected": scan_results['risks_detected'],
+            "claude_risk_assessment": claude_risk_assessment
         }
 
-        mcp_model_json = json.dumps(model_report, indent=4)
-        st.download_button("📥 Download Model Scan Report (.json)", data=mcp_model_json, file_name="model_scan_report.json", mime="application/json")
+        final_report_json = json.dumps(final_report, indent=4)
+        st.download_button("📥 Download Full Model Risk Report (.json)", data=final_report_json, file_name="redsentinel_model_risk_report.json", mime="application/json")
 
     else:
         st.info("👈 Upload a model file to scan.")
+
