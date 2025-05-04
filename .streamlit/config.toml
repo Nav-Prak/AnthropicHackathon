@@ -1,0 +1,6 @@
+[theme]
+primaryColor = "#6C3483"           # deep purple for accents
+backgroundColor = "#E6E6FA"        # lavender page background
+secondaryBackgroundColor = "#D7BDE2" # lighter purple for sidebars, cards
+textColor = "#1C2833"              # dark slate for text
+font = "sans serif"
