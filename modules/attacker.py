@@ -15,26 +15,19 @@ openrouter_client = OpenAI(
 # Set up Anthropic client (for Claude)
 claude_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-def call_deepseek_openrouter(prompt):
+def call_deepseek_openrouter(prompt: str) -> str:
     completion = openrouter_client.chat.completions.create(
-        model="tngtech/deepseek-r1t-chimera:free",
+        model="deepseek/deepseek-prover-v2:free",
         messages=[
-            {
-                "role": "system",
-                "content": "You are an expert red team prompt engineer."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
+            {"role": "system", "content": "You are an expert red team prompt engineer."},
+            {"role": "user", "content": prompt}
         ],
-        extra_headers={
-            "Referer": "https://localhost",  # Update for deploy
-            "X-Title": "RedSentinel"
-        },
-        extra_body={},
         temperature=0.7,
-        max_tokens=300
+        max_tokens=300,
+        extra_headers={
+            "Referer": "https://localhost",  # or your GitHub/app URL
+            "X-Title": "RedSentinel"
+        }
     )
     return completion.choices[0].message.content.strip()
 
