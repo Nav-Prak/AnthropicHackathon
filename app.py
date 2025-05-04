@@ -9,12 +9,27 @@ from modules.mcp_logger import MCPRecord, save_mcp_record
 from modules.file_scanner import scan_model_file
 from modules.claude_analyzer import analyze_scan_with_claude
 
+import matplotlib.pyplot as plt
 
-# Streamlit Page Settings
-st.set_page_config(page_title="RedSentinel", page_icon="🚨", layout="wide")
+# Must be FIRST
+st.set_page_config(page_title="PurpleOps", page_icon="🛡️", layout="wide")
 
-st.title("🚨 RedSentinel: AI Safety Red Team Agent")
-st.subheader("Adversarial Prompt Attacks + Model Artifact Safety Scanner (MCP-Compliant)")
+def draw_purpleops_logo():
+    fig, ax = plt.subplots(figsize=(4, 4))
+    red_circle = plt.Circle((0.45, 0.5), 0.2, color='red', alpha=0.6)
+    blue_circle = plt.Circle((0.55, 0.5), 0.2, color='blue', alpha=0.6)
+    ax.add_artist(red_circle)
+    ax.add_artist(blue_circle)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_aspect('equal')
+    ax.axis('off')
+    fig.patch.set_facecolor('white')
+    st.pyplot(fig)
+
+# Title and Logo
+st.title("🚀 PurpleOps: Unified Red + Blue Teaming for AI Security")
+draw_purpleops_logo()
 
 # Sidebar - User Inputs
 with st.sidebar:

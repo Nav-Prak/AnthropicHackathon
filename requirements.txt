@@ -7,3 +7,5 @@ rich
 python-dotenv
 h5py
 python-magic
+matplotlib
+plotly
