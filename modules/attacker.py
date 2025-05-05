@@ -33,8 +33,7 @@ def call_deepseek_openrouter(
             "X-Title": "PurpleOps"
         }
     )
-    data = resp.dict()
-    return data["choices"][0]["message"]["content"].strip()
+    return resp.choices[0].message.content.strip() if resp.choices else ""
 
 def generate_attacks(
     base_prompt: str,
