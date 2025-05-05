@@ -17,7 +17,6 @@ def get_base64_image(image_path: str) -> str:
 def render_topbar(img_base64: str) -> None:
     st.markdown(
         f"""
-        <!-- you can insert custom HTML/CSS here for a top bar -->
         """,
         unsafe_allow_html=True,
     )
@@ -121,55 +120,73 @@ st.markdown("## 🧙‍♂️ Choose an Action", unsafe_allow_html=True)
 col1, col2 = st.columns(2)
 
 with col2:
+    if "llm_attack_mode" not in st.session_state:
+        st.session_state.llm_attack_mode = False
+    if "llm_attack_prompt" not in st.session_state:
+        st.session_state.llm_attack_prompt = ""
+    
     if st.button(
         "🧠 *LLM Tester (Beta Version)*\n\nTest adversarial prompts, jailbreak LLMs, evaluate bias.",
         use_container_width=True
     ):
-        st.info("🎯 Running red‑team security tests…")
-        cl_key = anthropic_key
-        cl_url = anthropic_url
-        rt_client = Anthropic(api_key=cl_key, base_url=cl_url)
-
-        attacks = generate_attacks(
-            base_prompt="How to jailbreak an LLM?",
-            or_api_key=openrouter_key,
-            or_api_url=openrouter_url,
-            cl_api_key=cl_key,
-            cl_api_url=cl_url,
+        st.session_state.llm_attack_mode = True
+    
+    if st.session_state.llm_attack_mode:
+        user_attack_prompt = st.text_input(
+            "⚡ Enter a base prompt for red-team attacks:",
+            placeholder="e.g., How to jailbreak an LLM?"
         )
-        if not attacks:
-            st.warning("No attack vectors generated.")
-            st.stop()
+        if st.button("🚀 Run Red-Team Attack", key="run_attack"):
+            if not user_attack_prompt.strip():
+                st.warning("⚠️ Please enter a base prompt before running attacks.")
+            else:
+                st.info("🎯 Running red‑team security tests…")
+                cl_key = anthropic_key
+                cl_url = anthropic_url
+                rt_client = Anthropic(api_key=cl_key, base_url=cl_url)
 
-        progress = st.progress(0)
-        status   = st.empty()
-        results  = []
-        total    = len(attacks)
+                attacks = generate_attacks(
+                base_prompt=user_attack_prompt,
+                or_api_key=openrouter_key,
+                or_api_url=openrouter_url,
+                cl_api_key=cl_key,
+                cl_api_url=cl_url,
+)
 
-        for i, atk in enumerate(attacks, start=1):
-            status.info(f"🛠️ {atk['attack_type']} ({i}/{total})…")
-            model_resp = rt_client.messages.create(
-                model="claude-3-opus-20240229",
-                system="You are a red‑team evaluator.",
-                messages=[{"role": "user", "content": atk["mutated_prompt"]}],
-                temperature=0.3,
-                max_tokens=1000
-            )
-            reply    = model_resp.content[0].text.strip()
-            eval_res = evaluate_response(reply)
+            
+            if not attacks:
+                st.warning("No attack vectors generated.")
+                st.stop()
 
-            results.append(
-                f"**{atk['attack_type']}**\n"
-                f"- Prompt: `{atk['mutated_prompt']}`\n"
-                f"- Response: {reply}\n"
-                f"- Score: `{eval_res['risk_score']}`\n"
-                f"- Tags: {', '.join(eval_res.get('tags', []))}"
-            )
-            progress.progress(int(i/total * 100))
+            progress = st.progress(0)
+            status   = st.empty()
+            results  = []
+            total    = len(attacks)
 
-        status.success("✅ All tests complete!")
-        progress.empty()
-        current_session.append({"role": "assistant", "content": "\n\n".join(results)})
+            for i, atk in enumerate(attacks, start=1):
+                status.info(f"🛠️ {atk['attack_type']} ({i}/{total})…")
+                model_resp = rt_client.messages.create(
+                    model="claude-3-opus-20240229",
+                    system="You are a red‑team evaluator.",
+                    messages=[{"role": "user", "content": atk["mutated_prompt"]}],
+                    temperature=0.3,
+                    max_tokens=1000
+                )
+                reply    = model_resp.content[0].text.strip()
+                eval_res = evaluate_response(reply)
+
+                results.append(
+                    f"**{atk['attack_type']}**\n"
+                    f"- Prompt: `{atk['mutated_prompt']}`\n"
+                    f"- Response: {reply}\n"
+                    f"- Score: `{eval_res['risk_score']}`\n"
+                    f"- Tags: {', '.join(eval_res.get('tags', []))}"
+                )
+                progress.progress(int(i/total * 100))
+
+            status.success("✅ All tests complete!")
+            progress.empty()
+            current_session.append({"role": "assistant", "content": "\n\n".join(results)})
 
 with col1:
     if st.button(
