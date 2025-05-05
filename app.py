@@ -20,16 +20,6 @@ def get_base64_image(image_path: str) -> str:
 def render_topbar(img_base64: str) -> None:
     st.markdown(
         f"""
-        <div style="display:flex;align-items:center;gap:10px;
-                    padding:10px 0 20px 0;
-                    border-bottom:2px solid #D1C4E9;">
-            <img src="data:image/png;base64,{img_base64}" width="70"
-                 style="border-radius:8px;">
-            <h1 style="display:inline;color:#6C3483;
-                       font-size:2rem;margin:0;">
-              Purple OPS - AI Security Assistant
-            </h1>
-        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -123,12 +113,12 @@ with st.sidebar:
 # === MAIN AREA & ACTION BUTTONS ===
 current_session = st.session_state.chat_sessions[st.session_state.active_chat_index]
 
-st.markdown("## 🔥 Choose an Action", unsafe_allow_html=True)
+st.markdown("## 🧙‍♂️ Choose an Action", unsafe_allow_html=True)
 col1, col2 = st.columns(2)
 
 with col1:
     if st.button(
-        "🧠 *LLM Tester (Demo)*\n\nTest adversarial prompts, jailbreak LLMs, evaluate bias.",
+        "🧠 *LLM Tester (Beta Version)*\n\nTest adversarial prompts, jailbreak LLMs, evaluate bias.",
         use_container_width=True
     ):
         st.info("🎯 Running red‑team security tests…")
@@ -182,44 +172,50 @@ with col1:
 
 with col2:
     if st.button(
-        "🛡 *File Risk Analyzer*\n\nScan uploaded model files for security risks and vulnerabilities.",
+        "🛡 File Risk Analyzer\n\nScan uploaded model files for security risks and vulnerabilities.",
         use_container_width=True
     ):
-        # simulate user saying they want to analyse the uploaded file
-        current_session.append({
-            "role": "user",
-            "content": "I want to analyse uploaded file"
-        })
-        st.info("🔍 Running file scan...")
-        scan = scan_model_file(st.session_state.latest_file)
-        analysis = analyze_scan_with_claude(scan)
-        summary = (
-            f"**📂 File:** `{scan['filename']}`  \n"
-            f"**📄 File Type:** `{scan['file_type']}`  \n"
-            f"**🧠 Framework:** `{scan['framework']}`  \n"
-            f"**⚠️ Risks:** {', '.join(scan['risks_detected']) or 'None'}\n\n"
-            "**🧠 Claude Analysis:**\n"
-            f"- **Severity:** `{analysis['risk_severity']}`\n"
-            f"- **Concerns:** {analysis['security_concerns']}\n"
-            f"- **Recommendations:** {analysis['recommended_actions']}"
-        )
-        current_session.append({"role": "assistant", "content": summary})
+        if st.session_state.get("latest_file") is None:
+            st.warning("⚠️ Please upload a model file before running the File Risk Analyzer.")
+        else:
+            current_session.append({
+                "role": "user",
+                "content": "I want to analyse uploaded file"
+            })
+            st.info("🔍 Running file scan...")
+            scan = scan_model_file(st.session_state.latest_file)
+            analysis = analyze_scan_with_claude(scan)
+            summary = (
+                f"**📂 File:** `{scan['filename']}`  \n"
+                f"**📄 File Type:** `{scan['file_type']}`  \n"
+                f"**🧠 Framework:** `{scan['framework']}`  \n"
+                f"**⚠️ Risks:** {', '.join(scan['risks_detected']) or 'None'}\n\n"
+                "**🧠 Claude Analysis:**\n"
+                f"- **Severity:** `{analysis['risk_severity']}`\n"
+                f"- **Concerns:** {analysis['security_concerns']}\n"
+                f"- **Recommendations:** {analysis['recommended_actions']}"
+            )
+            current_session.append({"role": "assistant", "content": summary})
 
-# === CHAT INPUT & FILE UPLOAD ===
-user_input = st.chat_input("Ask me about AI security, red teaming, or malware analysis...")
-
+# === UPLOAD AREA and CHAT INPUT ===
 st.markdown("""<div style="display:flex;align-items:center;gap:10px;">""", unsafe_allow_html=True)
+
 uploaded_file = st.file_uploader(
     "Upload a model file",
     label_visibility="collapsed",
     key="file_upload",
     type=None
 )
+
 st.markdown("</div>", unsafe_allow_html=True)
 
+# Save uploaded file to session state
 if uploaded_file is not None:
     st.session_state.latest_file = uploaded_file
-    st.success(f"Uploaded {uploaded_file.name}")
+    st.success(f"✅ Uploaded ⁠ {uploaded_file.name} ⁠ successfully!")
+
+# Chat input after upload
+user_input = st.chat_input("Ask me about AI security, red teaming, or malware analysis...")
 
 # === HANDLE USER INPUT ===
 if user_input:
