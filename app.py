@@ -55,24 +55,70 @@ render_topbar(img_base64)
 
 # === SIDEBAR ===
 with st.sidebar:
-    if st.button("\u2795 New Chat"):
+    # Bigger logo and name, aligned to top-left
+    st.markdown(
+        f"""
+        <div>
+            <div style="display:flex;align-items:center;gap:1px;justify-content:flex-start;">
+                <img src="data:image/png;base64,{img_base64}" width="120" style="border-radius:40px;">
+                <div style="display:flex;flex-direction:column;">
+                    <span style="font-size:26px;font-weight:900;color:#6C3483;">PurpleOps</span>
+                    <span style="font-size:14px;color:#000000;">AI Security Assistant</span>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <style>
+        .sidebar-button button {
+            width: 100%;
+            height: 45px;
+            border-radius: 10px;
+            text-align: left;
+            padding-left: 15px;
+            font-size: 16px;
+            margin-bottom: 5px;
+            background-color: #E8DAEF;
+            color: #4A235A;
+            font-weight: 600;
+        }
+        .sidebar-button button:hover {
+            background-color: #D2B4DE;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    st.markdown('<div class="sidebar-button">', unsafe_allow_html=True)
+    if st.button("➕ New Chat"):
         st.session_state.chat_sessions.append([])
         st.session_state.active_chat_index = len(st.session_state.chat_sessions) - 1
         st.session_state.latest_file = None
 
-    st.markdown("---")
-    st.markdown("""
-        <h3 style='font-size:22px; font-weight:600; color:#6C3483; margin-bottom:10px;'>
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown("<hr style='margin: 15px 0;'>", unsafe_allow_html=True)
+
+    st.markdown(
+        """
+        <h3 style='font-size: 20px; font-weight: 700; color: #6C3483; margin-left: 10px;'>
             🕑 Previous Chats
         </h3>
-    """, unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True
+    )
 
     for idx, session in enumerate(st.session_state.chat_sessions):
         if session and any(msg["role"] == "user" for msg in session):
             first_user = next(msg["content"] for msg in session if msg["role"] == "user")
-            title = (first_user[:30] + "...") if len(first_user) > 30 else first_user
+            title = (first_user[:25] + "...") if len(first_user) > 25 else first_user
+            st.markdown('<div class="sidebar-button">', unsafe_allow_html=True)
             if st.button(title, key=f"chat_{idx}"):
                 st.session_state.active_chat_index = idx
+
 
 # === MAIN AREA & ACTION BUTTONS ===
 current_session = st.session_state.chat_sessions[st.session_state.active_chat_index]
