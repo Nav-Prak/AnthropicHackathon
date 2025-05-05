@@ -42,16 +42,15 @@ if "active_chat_index" not in st.session_state:
 if "latest_file" not in st.session_state:
     st.session_state.latest_file = None
 
-# === LOADS ===
+# === LOAD ENV & CLIENT ===
 load_dotenv()
-# instantiate main Claude client with optional base_url override
 client = Anthropic(
     api_key=os.getenv("ANTHROPIC_API_KEY"),
     base_url=os.getenv("ANTHROPIC_API_URL", "https://api.anthropic.com")
 )
 img_base64 = get_base64_image("A_2D_digital_illustration_features_a_purple_wizard.png")
 
-# === UI ===
+# === RENDER TOPBAR ===
 render_topbar(img_base64)
 
 # === SIDEBAR ===
@@ -62,6 +61,12 @@ with st.sidebar:
         st.session_state.latest_file = None
 
     st.markdown("---")
+    st.markdown("""
+        <h3 style='font-size:22px; font-weight:600; color:#6C3483; margin-bottom:10px;'>
+            🕑 Previous Chats
+        </h3>
+    """, unsafe_allow_html=True)
+
     for idx, session in enumerate(st.session_state.chat_sessions):
         if session and any(msg["role"] == "user" for msg in session):
             first_user = next(msg["content"] for msg in session if msg["role"] == "user")
@@ -69,31 +74,48 @@ with st.sidebar:
             if st.button(title, key=f"chat_{idx}"):
                 st.session_state.active_chat_index = idx
 
-# === MAIN AREA ===
+# === MAIN AREA & ACTION BUTTONS ===
 current_session = st.session_state.chat_sessions[st.session_state.active_chat_index]
 
-# === INPUT AREA ===
-st.markdown("""<div style="display:flex;align-items:center;gap:10px;">""", unsafe_allow_html=True)
+st.markdown("## 🔥 Choose an Action", unsafe_allow_html=True)
+col1, col2 = st.columns(2)
 
+with col1:
+    if st.button(
+        "🧠 *LLM Tester*\n\nTest adversarial prompts, jailbreak LLMs, evaluate bias.",
+        use_container_width=True
+    ):
+        # you can later wire this to set a flag in session_state
+        pass
+
+with col2:
+    if st.button(
+        "🛡 *File Risk Analyzer*\n\nScan uploaded model files for security risks and vulnerabilities.",
+        use_container_width=True
+    ):
+        # you can later wire this to set a flag in session_state
+        pass
+
+# === CHAT INPUT & FILE UPLOAD ===
 user_input = st.chat_input("Ask me about AI security, red teaming, or malware analysis...")
+
+st.markdown("""<div style="display:flex;align-items:center;gap:10px;">""", unsafe_allow_html=True)
 uploaded_file = st.file_uploader(
     "Upload a model file",
     label_visibility="collapsed",
     key="file_upload",
     type=None
 )
-
 st.markdown("</div>", unsafe_allow_html=True)
 
 if uploaded_file is not None:
     st.session_state.latest_file = uploaded_file
-    st.success(f"Uploaded `{uploaded_file.name}`")
+    st.success(f"Uploaded {uploaded_file.name}")
 
+# === HANDLE USER INPUT ===
 if user_input:
-    # add user message
     current_session.append({"role": "user", "content": user_input})
 
-    # call Claude
     try:
         claude_response = client.messages.create(
             model="claude-3-opus-20240229",
@@ -103,15 +125,18 @@ if user_input:
                 "You are RedSentinel, an AI Security Copilot assisting a user "
                 "in a cybersecurity CTF. Based on their requests, either answer "
                 "directly or decide whether to trigger tools using <ACTION:...> tags. "
-                "Actions: <ACTION:SCAN_FILE>, <ACTION:RED_TEAM>, <ACTION:LLM_TEST> or <NONE>."
+                "Actions: <ACTION:SCAN_FILE>, <ACTION:RED_TEAM>, or <ACTION:LLM_TEST>."
             ),
             messages=[{"role": "user", "content": user_input}]
         )
         content = claude_response.content[0].text.strip()
-        current_session.append({"role": "assistant", "content": content})
 
-        # 🔁 MCP Action Detection
-        if "<ACTION:SCAN_FILE>" in content and st.session_state.latest_file:
+        # 🔁 ACTION DETECTION
+        if "<ACTION:NONE>" in content:
+            # remove the tag and append as a normal assistant reply
+            clean = content.replace("<ACTION:NONE>", "").strip()
+            current_session.append({"role": "assistant", "content": clean})
+        elif "<ACTION:SCAN_FILE>" in content and st.session_state.latest_file:
             st.info("🔍 Running file scan...")
             scan = scan_model_file(st.session_state.latest_file)
             analysis = analyze_scan_with_claude(scan)
@@ -127,18 +152,15 @@ if user_input:
             )
             current_session.append({"role": "assistant", "content": summary})
 
-        elif "<ACTION:RED_TEAM>" in content or "<ACTION:LLM_TEST>" in content:
-            st.info("🎯 Running red‑team / LLM security tests…")
-
-            # 1) Init Claude client from .env
+        elif "<ACTION:RED_TEAM>" in content:
+            st.info("🎯 Running red‑team security tests…")
+            # init client from .env
             cl_key = os.getenv("ANTHROPIC_API_KEY", "")
             cl_url = os.getenv("ANTHROPIC_API_URL", "https://api.anthropic.com")
             rt_client = Anthropic(api_key=cl_key, base_url=cl_url)
 
-            # 2) Generate attack vectors
             attacks = generate_attacks(
                 base_prompt=user_input,
-                # no form → no explicit target, embedding user_input as the prompt
                 cl_api_key=cl_key,
                 cl_api_url=cl_url
             )
@@ -146,17 +168,13 @@ if user_input:
                 st.warning("No attack vectors generated.")
                 st.stop()
 
-            # 3) Progress UI
             progress = st.progress(0)
             status   = st.empty()
             results  = []
             total    = len(attacks)
 
-            # 4) Loop through attacks
-            for idx, atk in enumerate(attacks, start=1):
-                status.info(f"🛠️ Running `{atk['attack_type']}` ({idx}/{total})…")
-
-                # send mutated prompt to Claude chat API
+            for i, atk in enumerate(attacks, start=1):
+                status.info(f"🛠️ {atk['attack_type']} ({i}/{total})…")
                 resp = rt_client.chat.completions.create(
                     model="claude-3-opus-20240229",
                     messages=[
@@ -166,12 +184,9 @@ if user_input:
                     temperature=0.3,
                     max_tokens_to_sample=1000
                 )
-                reply = resp.choices[0].message.content.strip()
-
-                # evaluate for risk
+                reply   = resp.choices[0].message.content.strip()
                 eval_res = evaluate_response(reply)
 
-                # collect results
                 results.append(
                     f"**{atk['attack_type']}**\n"
                     f"Prompt: `{atk['mutated_prompt']}`\n"
@@ -179,19 +194,41 @@ if user_input:
                     f"Score: `{eval_res['risk_score']}`\n"
                     f"Tags: {', '.join(eval_res.get('tags', []))}"
                 )
-
-                progress.progress(int(idx/total * 100))
+                progress.progress(int(i/total * 100))
 
             status.success("✅ All tests complete!")
             progress.empty()
-
-            # 5) Append to your chat
             current_session.append({
                 "role": "assistant",
                 "content": "\n\n".join(results)
             })
 
+        elif "<ACTION:LLM_TEST>" in content:
+            st.info("🔬 Running LLM security test with default configuration…")
+            try:
+                resp = client.chat.completions.create(
+                    model="claude-3-opus-20240229",
+                    messages=[
+                        {"role": "system", "content": "You are an AI security tester."},
+                        {"role": "user",   "content": user_input}
+                    ],
+                    temperature=0,
+                    max_tokens_to_sample=1000
+                )
+                output = resp.choices[0].message.content.strip()
+                current_session.append({
+                    "role": "assistant",
+                    "content": f"**LLM Test Output:**\n\n{output}"
+                })
+            except Exception as e:
+                current_session.append({
+                    "role": "assistant",
+                    "content": f"LLM Test error: {e}"
+                })
 
+        else:
+            # no tool action, just chat reply
+            current_session.append({"role": "assistant", "content": content})
 
     except Exception as e:
         current_session.append({
