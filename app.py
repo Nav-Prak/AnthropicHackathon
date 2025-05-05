@@ -103,7 +103,7 @@ if user_input:
                 "You are RedSentinel, an AI Security Copilot assisting a user "
                 "in a cybersecurity CTF. Based on their requests, either answer "
                 "directly or decide whether to trigger tools using <ACTION:...> tags. "
-                "Actions: <ACTION:SCAN_FILE>, <ACTION:RED_TEAM>, or <NONE>."
+                "Actions: <ACTION:SCAN_FILE>, <ACTION:RED_TEAM>, <ACTION:LLM_TEST> or <NONE>."
             ),
             messages=[{"role": "user", "content": user_input}]
         )
@@ -127,58 +127,71 @@ if user_input:
             )
             current_session.append({"role": "assistant", "content": summary})
 
-        elif "<ACTION:RED_TEAM>" in content:
-            st.info("🎯 Prepare your red‑team attack")
-            with st.form(key="red_team_form"):
-                target = st.text_input(
-                    "Target to attack",
-                    placeholder="e.g. https://api.myservice.com/v1/endpoint"
-                )
-                api_key_input = st.text_input(
-                    "Claude API Key",
-                    type="password",
-                    help="Paste your Anthropic/Claude API key here"
-                )
-                api_url_input = st.text_input(
-                    "API Endpoint",
-                    value="https://api.anthropic.com/v1/complete",
-                    help="Override endpoint if needed"
-                )
-                run = st.form_submit_button("Run Red Team Attack")
+        elif "<ACTION:RED_TEAM>" in content or "<ACTION:LLM_TEST>" in content:
+            st.info("🎯 Running red‑team / LLM security tests…")
 
-            if run:
-                if not (target and api_key_input):
-                    st.error("⚠️ You must specify both a target and your API key.")
-                else:
-                    with st.spinner(f"Attacking `{target}`…"):
-                        rt_client = anthropic.Client(
-                            api_key=api_key_input,
-                            base_url=api_url_input
-                        )
-                        attacks = generate_attacks(
-                            base_prompt=user_input,
-                            target=target,
-                            cl_api_key=api_key_input,
-                            cl_api_url=api_url_input
-                        )
-                        results = []
-                        for atk in attacks:
-                            resp = rt_client.completions.create(
-                                model="claude-3-opus-20240229",
-                                prompt=atk["mutated_prompt"],
-                                max_tokens_to_sample=0
-                            )
-                            eval_res = evaluate_response(resp.completion)
-                            results.append(
-                                f"**{atk['attack_type']}**\n"
-                                f"Prompt: `{atk['mutated_prompt']}`\n"
-                                f"Score: `{eval_res['risk_score']}`\n"
-                                f"Tags: {', '.join(eval_res.get('tags', []))}"
-                            )
-                        current_session.append({
-                            "role": "assistant",
-                            "content": "\n\n".join(results)
-                        })
+            # 1) Init Claude client from .env
+            cl_key = os.getenv("ANTHROPIC_API_KEY", "")
+            cl_url = os.getenv("ANTHROPIC_API_URL", "https://api.anthropic.com")
+            rt_client = Anthropic(api_key=cl_key, base_url=cl_url)
+
+            # 2) Generate attack vectors
+            attacks = generate_attacks(
+                base_prompt=user_input,
+                # no form → no explicit target, embedding user_input as the prompt
+                cl_api_key=cl_key,
+                cl_api_url=cl_url
+            )
+            if not attacks:
+                st.warning("No attack vectors generated.")
+                st.stop()
+
+            # 3) Progress UI
+            progress = st.progress(0)
+            status   = st.empty()
+            results  = []
+            total    = len(attacks)
+
+            # 4) Loop through attacks
+            for idx, atk in enumerate(attacks, start=1):
+                status.info(f"🛠️ Running `{atk['attack_type']}` ({idx}/{total})…")
+
+                # send mutated prompt to Claude chat API
+                resp = rt_client.chat.completions.create(
+                    model="claude-3-opus-20240229",
+                    messages=[
+                        {"role": "system", "content": "You are a red‑team evaluator."},
+                        {"role": "user",   "content": atk["mutated_prompt"]}
+                    ],
+                    temperature=0.3,
+                    max_tokens_to_sample=1000
+                )
+                reply = resp.choices[0].message.content.strip()
+
+                # evaluate for risk
+                eval_res = evaluate_response(reply)
+
+                # collect results
+                results.append(
+                    f"**{atk['attack_type']}**\n"
+                    f"Prompt: `{atk['mutated_prompt']}`\n"
+                    f"Response: {reply}\n"
+                    f"Score: `{eval_res['risk_score']}`\n"
+                    f"Tags: {', '.join(eval_res.get('tags', []))}"
+                )
+
+                progress.progress(int(idx/total * 100))
+
+            status.success("✅ All tests complete!")
+            progress.empty()
+
+            # 5) Append to your chat
+            current_session.append({
+                "role": "assistant",
+                "content": "\n\n".join(results)
+            })
+
+
 
     except Exception as e:
         current_session.append({
