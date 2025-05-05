@@ -1,10 +1,11 @@
-import os
-import anthropic
 import json
-from dotenv import load_dotenv
+import streamlit as st
+from anthropic import Anthropic
 
-load_dotenv()
-client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+client = Anthropic(
+    api_key=st.secrets["anthropic"]["api_key"],
+    base_url=st.secrets["anthropic"]["api_url"],
+)
 
 def analyze_scan_with_claude(scan_results):
     if "assembly" in scan_results:
