@@ -128,7 +128,7 @@ col1, col2 = st.columns(2)
 
 with col1:
     if st.button(
-        "🧠 *LLM Tester*\n\nTest adversarial prompts, jailbreak LLMs, evaluate bias.",
+        "🧠 *LLM Tester (Demo)*\n\nTest adversarial prompts, jailbreak LLMs, evaluate bias.",
         use_container_width=True
     ):
         st.info("🎯 Running red‑team security tests…")
@@ -156,12 +156,10 @@ with col1:
             # <-- here’s the change -->
             model_resp = rt_client.messages.create(
                 model="claude-3-opus-20240229",
-                messages=[
-                    {"role": "system", "content": "You are a red‑team evaluator."},
-                    {"role": "user",   "content": atk["mutated_prompt"]}
-                ],
+                system="You are a red‑team evaluator.",
+                messages=[{"role": "user", "content": atk["mutated_prompt"]}],
                 temperature=0.3,
-                max_tokens_to_sample=1000
+                max_tokens=1000
             )
             reply = model_resp.content[0].text.strip()
 
@@ -289,12 +287,10 @@ if user_input:
                 # <-- here’s the change -->
                 model_resp = rt_client.messages.create(
                     model="claude-3-opus-20240229",
-                    messages=[
-                        {"role": "system", "content": "You are a red‑team evaluator."},
-                        {"role": "user",   "content": atk["mutated_prompt"]}
-                    ],
+                    system="You are a red‑team evaluator.",
+                    messages=[{"role": "user", "content": atk["mutated_prompt"]}],
                     temperature=0.3,
-                    max_tokens_to_sample=1000
+                    max_tokens=1000
                 )
                 reply = model_resp.content[0].text.strip()
 
