@@ -3,6 +3,24 @@ import pickle
 import h5py
 import magic
 import subprocess
+import io
+import builtins
+
+class RestrictedUnpickler(pickle.Unpickler):
+    # only these built‑in types are allowed
+    SAFE_BUILTINS = {
+        'dict', 'list', 'tuple', 'set', 'frozenset',
+        'str', 'bytes', 'int', 'float', 'complex', 'bool'
+    }
+
+    def find_class(self, module, name):
+        # Only allow safe builtins
+        if module == "builtins" and name in self.SAFE_BUILTINS:
+            return getattr(builtins, name)
+        raise pickle.UnpicklingError(f"Global '{module}.{name}' is forbidden")
+
+def safe_loads(data: bytes):
+    return RestrictedUnpickler(io.BytesIO(data)).load()
 
 def detect_file_type(file_path):
     mime = magic.Magic(mime=True)
@@ -46,15 +64,25 @@ def scan_model_file(uploaded_file):
 
         elif is_pickle_file(temp_path):
             try:
+                # read raw bytes
                 with open(temp_path, 'rb') as f:
-                    obj = pickle.load(f)
+                    raw = f.read()
+                # safely unpickle
+                obj = safe_loads(raw)
+
+                # detect framework as before
                 if hasattr(obj, "predict") and hasattr(obj, "fit"):
                     results["framework"] = "Pickle/Sklearn"
                 else:
                     results["framework"] = "Pickle/Unknown"
+
+                # still flag that unpickling happened
                 results["risks_detected"].append("⚠️ Unsafe Pickle Deserialization Risk")
+
+            except pickle.UnpicklingError as e:
+                results["risks_detected"].append(f"⛔ Unsafe pickle contents: {e}")
             except Exception as e:
-                results["risks_detected"].append(f"Error loading pickle: {str(e)}")
+                results["risks_detected"].append(f"Error processing pickle: {e}")
 
         elif temp_path.endswith(".h5"):
             with h5py.File(temp_path, 'r') as f:
